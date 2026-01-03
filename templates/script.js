@@ -1,4 +1,4 @@
-const STATE = ['Éteinte', 'En cours', 'Suspendue'];
+const STATE = ['Éteinte', 'Active', 'Suspendue'];
 
 function showToast(msg, type = 'success') {
     const toast = document.getElementById('toast');
@@ -15,25 +15,27 @@ function closeModal() {
     document.getElementById('modal').classList.remove('show');
 }
 
-async function fillIsos() {
+async function loadHosts() {
     try {
-        const list = await fetch('/isos').then(r => r.json());
-        const sel = document.getElementById('isoSelect');
-        sel.innerHTML = '';
-
-        if (list.length === 0) {
-            sel.innerHTML = '<option value="">Aucune ISO trouvée</option>';
-            return;
-        }
-
-        list.forEach(f => {
-            const opt = document.createElement('option');
-            opt.value = f;
-            opt.textContent = f;
-            sel.appendChild(opt);
-        });
+        const hosts = await fetch('/hosts').then(r => r.json());
+        const select = document.getElementById('hostSelect');
+        select.innerHTML = hosts.map(h =>
+            `<option value="${h.id}">${h.name}</option>`
+        ).join('');
     } catch (e) {
-        console.error('Erreur ISOs:', e);
+        console.error('Erreur hosts:', e);
+    }
+}
+
+async function loadImages() {
+    try {
+        const images = await fetch('/images').then(r => r.json());
+        const select = document.getElementById('imageSelect');
+        select.innerHTML = images.map(img =>
+            `<option value="${img.name}">${img.name} ${img.downloaded ? '✓' : '(sera téléchargée)'}</option>`
+        ).join('');
+    } catch (e) {
+        console.error('Erreur images:', e);
     }
 }
 
@@ -43,44 +45,42 @@ async function updateMon() {
         const tb = document.querySelector('#mon');
 
         if (data.length === 0) {
-            tb.innerHTML = `<tr><td colspan="9">
-                <div class="empty-state">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"/>
-                    </svg>
-                    <p>Aucune instance pour le moment</p>
-                </div>
-            </td></tr>`;
+            tb.innerHTML = `<tr><td colspan="10">
+                        <div class="empty-state">
+                            <p>Aucune instance</p>
+                        </div>
+                    </td></tr>`;
             return;
         }
 
-        tb.innerHTML = data.map(v => `<tr data-vm="${v.name}">
-            <td><strong>${v.name}</strong></td>
-            <td><span class="status ${v.state===1?'on':'off'}">${STATE[v.state]||'Eteint'}</span></td>
-            <td>${v.cpu}</td>
-            <td class="ram-max">${v.ram} Mo</td>
-            <td class="cpu">-</td>
-            <td class="ram">-</td>
-            <td class="disk">-</td>
-            <td>${v.ip||'-'}</td>
-            <td>
-                <div class="actions">
-                    <button class="btn ${v.state===1?'btn-danger':'btn-success'}" 
-                            onclick="toggleVm('${v.name}',${v.state})">
-                        ${v.state===1?'Stop':'Start'}
-                    </button>
-                    <button class="btn btn-danger" onclick="deleteVm('${v.name}')">
-                        🗑
-                    </button>
-                </div>
-            </td>
-        </tr>`).join('');
+        tb.innerHTML = data.map(v => `<tr data-vm="${v.name}" data-host="${v.host}">
+                    <td><strong>${v.name}</strong></td>
+                    <td><span class="badge">${v.host_name}</span></td>
+                    <td><span class="status ${v.state===1?'on':'off'}">${STATE[v.state]||'Inconnu'}</span></td>
+                    <td>${v.cpu}</td>
+                    <td class="ram-max">${v.ram} Mo</td>
+                    <td class="cpu">-</td>
+                    <td class="ram">-</td>
+                    <td class="disk">-</td>
+                    <td>${v.ip||'-'}</td>
+                    <td>
+                        <div class="actions">
+                            <button class="btn ${v.state===1?'btn-danger':'btn-success'}" 
+                                    onclick="toggleVm('${v.name}','${v.host}',${v.state})">
+                                ${v.state===1?'Stop':'Start'}
+                            </button>
+                            <button class="btn btn-danger" onclick="deleteVm('${v.name}','${v.host}')">
+                                🗑
+                            </button>
+                        </div>
+                    </td>
+                </tr>`).join('');
     } catch (e) {
         console.error('Erreur update:', e);
     }
 }
 
-async function toggleVm(name, currentState) {
+async function toggleVm(name, host, currentState) {
     const action = currentState === 1 ? 'stop' : 'start';
     try {
         await fetch(`/${action}`, {
@@ -89,7 +89,8 @@ async function toggleVm(name, currentState) {
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify({
-                name
+                name,
+                host
             })
         });
         showToast(`VM ${name} ${action === 'start' ? 'démarrée' : 'arrêtée'}`, 'success');
@@ -99,8 +100,8 @@ async function toggleVm(name, currentState) {
     }
 }
 
-async function deleteVm(name) {
-    if (!confirm(`Supprimer la VM ${name} ?\nLe disque sera effacé.`)) return;
+async function deleteVm(name, host) {
+    if (!confirm(`Supprimer la VM ${name} ?`)) return;
     try {
         await fetch('/delete', {
             method: 'POST',
@@ -108,7 +109,8 @@ async function deleteVm(name) {
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify({
-                name
+                name,
+                host
             })
         });
         showToast(`VM ${name} supprimée`, 'success');
@@ -122,7 +124,7 @@ setInterval(async() => {
     try {
         const data = await fetch('/metrics').then(r => r.json());
         data.forEach(m => {
-            const row = document.querySelector(`tr[data-vm="${m.name}"]`);
+            const row = document.querySelector(`tr[data-vm="${m.name}"][data-host="${m.host}"]`);
             if (row) {
                 row.querySelector('.cpu').textContent = m.cpu + ' %';
                 row.querySelector('.ram').textContent = m.ram + ' %';
@@ -139,7 +141,7 @@ document.getElementById('deployForm').addEventListener('submit', async(e) => {
     const body = Object.fromEntries(new FormData(e.target));
 
     closeModal();
-    showToast(`Déploiement de ${body.name} en cours...`, 'warning');
+    showToast(`Déploiement de ${body.name} en cours... (30 sec)`, 'warning');
 
     try {
         const response = await fetch('/deploy', {
@@ -160,7 +162,7 @@ document.getElementById('deployForm').addEventListener('submit', async(e) => {
             showToast(`Erreur: ${result.error}`, 'error');
         }
     } catch (e) {
-        showToast(`Erreur réseau: ${e.message}`, 'error');
+        showToast(`Erreur: ${e.message}`, 'error');
     }
 });
 
@@ -169,6 +171,7 @@ window.onclick = (e) => {
 };
 
 // Init
-fillIsos();
+loadHosts();
+loadImages();
 updateMon();
 setInterval(updateMon, 5000);
