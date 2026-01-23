@@ -1,0 +1,629 @@
+<!doctype html>
+<html lang="fr">
+
+<head>
+    <meta charset="utf-8">
+    <title>Edu-Cloud - Administration</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+         :root {
+            --bg: #0f172a;
+            --card: #1e293b;
+            --accent: #3b82f6;
+            --text: #e2e8f0;
+            --muted: #64748b;
+            --border: #334155;
+            --ok: #10b981;
+            --ko: #ef4444;
+            --warning: #f59e0b;
+        }
+        
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            padding: 2rem;
+        }
+        
+        header {
+            max-width: 1400px;
+            margin: 0 auto 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem 0;
+            border-bottom: 1px solid var(--border);
+        }
+        
+        .logo {
+            font-size: 1.5rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+        
+        .admin-badge {
+            background: rgba(239, 68, 68, 0.2);
+            color: var(--ko);
+            padding: 0.35rem 0.75rem;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+        }
+        
+        nav {
+            display: flex;
+            gap: 1rem;
+            max-width: 1400px;
+            margin: 0 auto 2rem;
+        }
+        
+        .tab {
+            padding: 0.75rem 1.5rem;
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+            color: var(--text);
+        }
+        
+        .tab:hover,
+        .tab.active {
+            background: var(--accent);
+            border-color: var(--accent);
+        }
+        
+        main {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        .section {
+            display: none;
+        }
+        
+        .section.active {
+            display: block;
+        }
+        
+        .btn {
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: 8px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 0.9rem;
+            font-family: inherit;
+        }
+        
+        .btn-primary {
+            background: var(--accent);
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background: #2563eb;
+        }
+        
+        .btn-danger {
+            background: var(--ko);
+            color: white;
+            padding: 0.5rem 1rem;
+        }
+        
+        .btn-success {
+            background: var(--ok);
+            color: white;
+            padding: 0.5rem 1rem;
+        }
+        
+        .btn-warning {
+            background: var(--warning);
+            color: white;
+            padding: 0.5rem 1rem;
+        }
+        
+        .btn-delete {
+            background: #7c2d12;
+            color: white;
+            padding: 0.5rem 1rem;
+        }
+        
+        table {
+            width: 100%;
+            background: var(--card);
+            border-radius: 12px;
+            overflow: hidden;
+            border: 1px solid var(--border);
+        }
+        
+        th,
+        td {
+            padding: 1rem;
+            text-align: left;
+        }
+        
+        th {
+            background: #0f172a;
+            font-weight: 600;
+            color: var(--muted);
+            text-transform: uppercase;
+            font-size: 0.75rem;
+        }
+        
+        tr:not(:last-child) td {
+            border-bottom: 1px solid var(--border);
+        }
+        
+        .status {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 12px;
+            font-size: 0.875rem;
+            font-weight: 500;
+        }
+        
+        .status.running {
+            background: rgba(16, 185, 129, 0.2);
+            color: var(--ok);
+        }
+        
+        .status.stopped {
+            background: rgba(100, 116, 139, 0.2);
+            color: var(--muted);
+        }
+        
+        .status.creating {
+            background: rgba(245, 158, 11, 0.2);
+            color: var(--warning);
+        }
+        
+        .badge {
+            display: inline-block;
+            padding: 0.25rem 0.5rem;
+            border-radius: 6px;
+            font-size: 0.75rem;
+            background: rgba(59, 130, 246, 0.2);
+            color: var(--accent);
+            font-weight: 500;
+        }
+        
+        .modal {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.7);
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+        
+        .modal.show {
+            display: flex;
+        }
+        
+        .modal-content {
+            background: var(--card);
+            border-radius: 12px;
+            width: 90%;
+            max-width: 600px;
+            padding: 2rem;
+            max-height: 90vh;
+            overflow-y: auto;
+            border: 1px solid var(--border);
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 1rem;
+        }
+        
+        label span {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: var(--muted);
+            font-size: 0.9rem;
+        }
+        
+        input,
+        select,
+        textarea {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            background: var(--bg);
+            color: var(--text);
+            font-family: inherit;
+        }
+        
+        input:focus,
+        select:focus,
+        textarea:focus {
+            outline: none;
+            border-color: var(--accent);
+        }
+        
+        .actions {
+            display: flex;
+            gap: 0.5rem;
+            justify-content: flex-end;
+            margin-top: 2rem;
+        }
+        
+        .vm-actions {
+            display: flex;
+            gap: 0.5rem;
+        }
+        
+        .toast {
+            position: fixed;
+            bottom: 2rem;
+            right: 2rem;
+            background: var(--card);
+            padding: 1rem 1.5rem;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            display: none;
+            z-index: 2000;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+        }
+        
+        .toast.show {
+            display: block;
+            animation: slideIn 0.3s ease;
+        }
+        
+        .toast.success {
+            border-left: 3px solid var(--ok);
+        }
+        
+        .toast.error {
+            border-left: 3px solid var(--ko);
+        }
+        
+        .toast.warning {
+            border-left: 3px solid var(--warning);
+        }
+        
+        @keyframes slideIn {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+        
+        .stat-card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 1.5rem;
+        }
+        
+        .stat-card h3 {
+            color: var(--muted);
+            font-size: 0.875rem;
+            margin-bottom: 0.5rem;
+        }
+        
+        .stat-card .value {
+            font-size: 2rem;
+            font-weight: 600;
+            color: var(--accent);
+        }
+        
+        .form-row {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1rem;
+        }
+        
+        .admin-notice {
+            background: rgba(59, 130, 246, 0.1);
+            border: 1px solid rgba(59, 130, 246, 0.3);
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 1.5rem;
+        }
+        
+        .admin-notice h3 {
+            color: var(--accent);
+            margin-bottom: 0.5rem;
+            font-size: 1rem;
+        }
+        
+        .admin-notice p {
+            color: var(--muted);
+            font-size: 0.875rem;
+        }
+        
+        .confirm-modal {
+            background: rgba(0, 0, 0, 0.85);
+        }
+        
+        .confirm-content {
+            max-width: 400px;
+            text-align: center;
+        }
+        
+        .confirm-content h3 {
+            color: var(--ko);
+            margin-bottom: 1rem;
+            font-size: 1.5rem;
+        }
+        
+        .confirm-content p {
+            color: var(--muted);
+            margin-bottom: 2rem;
+        }
+    </style>
+</head>
+
+<body>
+    <header>
+        <div class="logo">🎓 Edu-Cloud</div>
+        <div class="user-info">
+            <span class="admin-badge">ADMIN</span>
+            <span id="username" style="font-weight: 500;"></span>
+            <button class="btn btn-danger" onclick="logout()">
+                Déconnexion
+            </button>
+        </div>
+    </header>
+
+    <nav>
+        <button class="tab active" onclick="showTab('vms')">Mes Instances</button>
+        <button class="tab" onclick="showTab('users')">👥 Utilisateurs</button>
+        <button class="tab" onclick="showTab('images')">Images</button>
+        <button class="tab" onclick="showTab('hosts')">🖥️ Hôtes</button>
+    </nav>
+
+    <main>
+        <!-- Section VMs Admin -->
+        <div id="vmsSection" class="section active">
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <h3>Instances actives</h3>
+                    <div class="value" id="statRunning">0</div>
+                </div>
+                <div class="stat-card">
+                    <h3>Total instances</h3>
+                    <div class="value" id="statTotal">0</div>
+                </div>
+            </div>
+
+            <button class="btn btn-primary" onclick="openModal()" style="margin-bottom: 1rem;">
+                + Créer une instance
+            </button>
+
+            <table>
+                <thead>
+                    <tr>
+                        <th>Nom</th>
+                        <th>Configuration</th>
+                        <th>Image</th>
+                        <th>Hôte</th>
+                        <th>Statut</th>
+                        <th>IP</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="vmsList">
+                    <tr>
+                        <td colspan="7" style="text-align: center; padding: 2rem; color: var(--muted);">
+                            Chargement...
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Section Utilisateurs -->
+        <div id="usersSection" class="section">
+            <h2 style="margin-bottom: 1rem;">Gestion des utilisateurs</h2>
+
+            <button class="btn btn-primary" onclick="openCreateUserModal()" style="margin-bottom: 1rem;">
+                + Créer un utilisateur
+            </button>
+
+            <table>
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Nom d'utilisateur</th>
+                        <th>Email</th>
+                        <th>VMs</th>
+                        <th>Facturation totale</th>
+                        <th>Créé le</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="usersList">
+                    <tr>
+                        <td colspan="7" style="text-align: center; padding: 2rem; color: var(--muted);">
+                            Chargement...
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Section Images -->
+        <div id="imagesSection" class="section">
+            <h2 style="margin-bottom: 1rem;">Images Cloud Disponibles</h2>
+            <p style="color: var(--muted); margin-bottom: 1.5rem;">
+                Les images doivent être pré-téléchargées avec <code style="background: var(--card); padding: 0.25rem 0.5rem; border-radius: 4px;">./download-images.sh</code>
+            </p>
+
+            <div id="imagesList" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1rem;">
+                <div style="text-align: center; padding: 2rem; color: var(--muted); grid-column: 1/-1;">
+                    Chargement...
+                </div>
+            </div>
+        </div>
+
+        <!-- Section Hôtes -->
+        <div id="hostsSection" class="section">
+            <h2 style="margin-bottom: 1rem;">État des hôtes KVM</h2>
+            <div id="hostsList">
+                <div style="text-align: center; padding: 2rem; color: var(--muted);">
+                    Chargement...
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Modal Création VM -->
+    <div id="modal" class="modal">
+        <div class="modal-content">
+            <h2 style="margin-bottom: 1.5rem;">Créer une nouvelle instance</h2>
+            <form id="deployForm">
+                <div class="admin-notice">
+                    <h3>⚡ Mode Administrateur</h3>
+                    <p>Configuration personnalisée sans limite de ressources</p>
+                </div>
+
+                <label>
+                    <span>Nom de l'instance *</span>
+                    <input name="name" required placeholder="ex: srv-web-prod">
+                </label>
+
+                <label>
+                    <span>Hôte KVM *</span>
+                    <select name="host" id="hostSelect" required>
+                        <option value="local">Hôte Local</option>
+                    </select>
+                </label>
+
+                <div class="form-row">
+                    <label>
+                        <span>vCPU *</span>
+                        <input type="number" name="cpu" min="1" max="32" value="2" required>
+                    </label>
+                    <label>
+                        <span>RAM (MB) *</span>
+                        <input type="number" name="ram" min="512" max="65536" step="512" value="4096" required>
+                    </label>
+                    <label>
+                        <span>Disque (GB) *</span>
+                        <input type="number" name="disk" min="10" max="500" value="20" required>
+                    </label>
+                </div>
+
+                <label>
+                    <span>Image système *</span>
+                    <select name="image" id="imageSelect" required>
+                        <option value="">Chargement...</option>
+                    </select>
+                </label>
+
+                <label>
+                    <span>Utilisateur système *</span>
+                    <input name="user" value="ubuntu" required>
+                </label>
+
+                <label>
+                    <span>Mot de passe *</span>
+                    <input type="password" name="password" required>
+                </label>
+
+                <label>
+                    <span>Clé SSH (optionnel)</span>
+                    <textarea name="sshkey" rows="2" placeholder="ssh-rsa AAAA..."></textarea>
+                </label>
+
+                <div class="actions">
+                    <button type="button" class="btn" onclick="closeModal()" style="background: var(--border); color: var(--text);">
+                        Annuler
+                    </button>
+                    <button type="submit" class="btn btn-primary">
+                        Créer l'instance
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal Création Utilisateur -->
+    <div id="createUserModal" class="modal">
+        <div class="modal-content" style="max-width: 500px;">
+            <h2 style="margin-bottom: 1.5rem;">Créer un utilisateur</h2>
+            <form id="createUserForm">
+                <label>
+                    <span>Nom d'utilisateur *</span>
+                    <input name="username" required>
+                </label>
+                <label>
+                    <span>Email</span>
+                    <input type="email" name="email">
+                </label>
+                <label>
+                    <span>Mot de passe *</span>
+                    <input type="password" name="password" required minlength="6">
+                </label>
+                <div class="actions">
+                    <button type="button" class="btn" onclick="closeCreateUserModal()" style="background: var(--border); color: var(--text);">
+                        Annuler
+                    </button>
+                    <button type="submit" class="btn btn-primary">
+                        Créer
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal Confirmation Suppression -->
+    <div id="confirmModal" class="modal confirm-modal">
+        <div class="modal-content confirm-content">
+            <h3>⚠️ Confirmer la suppression</h3>
+            <p>Êtes-vous sûr de vouloir supprimer l'instance <strong id="vmToDelete"></strong> ?</p>
+            <p style="color: var(--ko); font-size: 0.875rem;">Cette action est irréversible.</p>
+            <div class="actions" style="justify-content: center;">
+                <button class="btn" onclick="closeConfirmModal()" style="background: var(--border); color: var(--text);">
+                    Annuler
+                </button>
+                <button class="btn btn-delete" onclick="confirmDelete()">
+                    Supprimer
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div id="toast" class="toast"></div>
+
+    <script src="api.js"></script>
+    <script src="admin-app.js"></script>
+</body>
+
+</html>

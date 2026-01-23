@@ -1,10 +1,10 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="fr">
 
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>IaaS Cloud Platform</title>
+    <meta charset="utf-8">
+    <title>Edu-Cloud - Connexion</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
          :root {
@@ -30,103 +30,97 @@
             background: var(--bg);
             color: var(--text);
             min-height: 100vh;
-        }
-        
-        .login-container {
-            min-height: 100vh;
             display: flex;
             align-items: center;
             justify-content: center;
             padding: 2rem;
         }
         
-        .login-box {
+        .auth-box {
             background: var(--card);
             border: 1px solid var(--border);
             border-radius: 12px;
             padding: 3rem;
             width: 100%;
-            max-width: 400px;
+            max-width: 450px;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.3);
         }
         
-        .login-box h1 {
-            margin-bottom: 2rem;
+        .auth-box h1 {
+            margin-bottom: 0.5rem;
             text-align: center;
-            color: var(--accent);
+            background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            font-size: 2.5rem;
         }
         
-        .app-container {
-            display: none;
-            padding: 2rem;
+        .auth-subtitle {
+            text-align: center;
+            color: var(--muted);
+            font-size: 0.875rem;
+            margin-bottom: 2rem;
         }
         
-        .app-container.show {
-            display: block;
-        }
-        
-        header {
-            max-width: 1400px;
-            margin: 0 auto 2rem;
+        .auth-tabs {
             display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 1rem 0;
+            gap: 1rem;
+            margin-bottom: 2rem;
             border-bottom: 1px solid var(--border);
         }
         
-        .logo {
-            font-size: 1.5rem;
-            font-weight: 600;
-            color: var(--accent);
-        }
-        
-        .user-info {
-            display: flex;
-            align-items: center;
-            gap: 1rem;
-        }
-        
-        .badge {
-            background: rgba(59, 130, 246, 0.2);
-            padding: 0.25rem 0.75rem;
-            border-radius: 12px;
-            font-size: 0.875rem;
-            color: var(--accent);
-        }
-        
-        nav {
-            display: flex;
-            gap: 1rem;
-            max-width: 1400px;
-            margin: 0 auto 2rem;
-        }
-        
-        .tab {
+        .auth-tab {
             padding: 0.75rem 1.5rem;
-            background: var(--card);
-            border: 1px solid var(--border);
-            border-radius: 8px;
+            background: none;
+            border: none;
+            color: var(--muted);
             cursor: pointer;
+            border-bottom: 2px solid transparent;
+            font-size: 1rem;
+            font-family: inherit;
             transition: all 0.2s;
         }
         
-        .tab:hover,
-        .tab.active {
-            background: var(--accent);
-            border-color: var(--accent);
+        .auth-tab.active {
+            color: var(--accent);
+            border-bottom-color: var(--accent);
         }
         
-        main {
-            max-width: 1400px;
-            margin: 0 auto;
-        }
-        
-        .section {
+        .auth-form {
             display: none;
         }
         
-        .section.active {
+        .auth-form.active {
             display: block;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 1rem;
+        }
+        
+        label span {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: var(--muted);
+            font-size: 0.9rem;
+        }
+        
+        input {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            background: var(--bg);
+            color: var(--text);
+            font-family: inherit;
+            font-size: 1rem;
+        }
+        
+        input:focus {
+            outline: none;
+            border-color: var(--accent);
         }
         
         .btn {
@@ -143,128 +137,12 @@
         .btn-primary {
             background: var(--accent);
             color: white;
+            width: 100%;
+            margin-top: 1rem;
         }
         
         .btn-primary:hover {
             background: #2563eb;
-        }
-        
-        .btn-danger {
-            background: var(--ko);
-            color: white;
-            padding: 0.5rem 1rem;
-        }
-        
-        .btn-success {
-            background: var(--ok);
-            color: white;
-            padding: 0.5rem 1rem;
-        }
-        
-        table {
-            width: 100%;
-            background: var(--card);
-            border-radius: 12px;
-            overflow: hidden;
-            border: 1px solid var(--border);
-        }
-        
-        th,
-        td {
-            padding: 1rem;
-            text-align: left;
-        }
-        
-        th {
-            background: #0f172a;
-            font-weight: 600;
-            color: var(--muted);
-            text-transform: uppercase;
-            font-size: 0.75rem;
-        }
-        
-        tr:not(:last-child) td {
-            border-bottom: 1px solid var(--border);
-        }
-        
-        .status {
-            display: inline-block;
-            padding: 0.25rem 0.75rem;
-            border-radius: 12px;
-            font-size: 0.875rem;
-            font-weight: 500;
-        }
-        
-        .status.running {
-            background: rgba(16, 185, 129, 0.2);
-            color: var(--ok);
-        }
-        
-        .status.stopped {
-            background: rgba(100, 116, 139, 0.2);
-            color: var(--muted);
-        }
-        
-        .modal {
-            display: none;
-            position: fixed;
-            inset: 0;
-            background: rgba(0, 0, 0, 0.7);
-            align-items: center;
-            justify-content: center;
-            z-index: 1000;
-        }
-        
-        .modal.show {
-            display: flex;
-        }
-        
-        .modal-content {
-            background: var(--card);
-            border-radius: 12px;
-            width: 90%;
-            max-width: 500px;
-            padding: 2rem;
-            max-height: 90vh;
-            overflow-y: auto;
-            border: 1px solid var(--border);
-        }
-        
-        label {
-            display: block;
-            margin-bottom: 1rem;
-        }
-        
-        label span {
-            display: block;
-            margin-bottom: 0.5rem;
-            color: var(--muted);
-            font-size: 0.9rem;
-        }
-        
-        input,
-        select,
-        textarea {
-            width: 100%;
-            padding: 0.75rem;
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            background: var(--bg);
-            color: var(--text);
-            font-family: inherit;
-        }
-        
-        input:focus,
-        select:focus {
-            outline: none;
-            border-color: var(--accent);
-        }
-        
-        .actions {
-            display: flex;
-            gap: 0.5rem;
-            justify-content: flex-end;
-            margin-top: 2rem;
         }
         
         .toast {
@@ -277,6 +155,7 @@
             border: 1px solid var(--border);
             display: none;
             z-index: 2000;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
         }
         
         .toast.show {
@@ -292,6 +171,10 @@
             border-left: 3px solid var(--ko);
         }
         
+        .toast.warning {
+            border-left: 3px solid var(--warning);
+        }
+        
         @keyframes slideIn {
             from {
                 transform: translateX(100%);
@@ -303,208 +186,71 @@
             }
         }
         
-        .flavor-card {
-            background: var(--card);
-            border: 2px solid var(--border);
-            border-radius: 12px;
-            padding: 1.5rem;
-            cursor: pointer;
-            transition: all 0.2s;
-            margin-bottom: 1rem;
-        }
-        
-        .flavor-card:hover {
-            border-color: var(--accent);
-        }
-        
-        .flavor-card.selected {
-            border-color: var(--accent);
-            background: rgba(59, 130, 246, 0.1);
-        }
-        
-        .flavor-card h3 {
-            margin-bottom: 0.5rem;
-            color: var(--accent);
-        }
-        
-        .flavor-specs {
-            display: flex;
-            gap: 1rem;
-            margin: 0.5rem 0;
+        .info-box {
+            text-align: center;
+            margin-top: 1.5rem;
+            padding-top: 1.5rem;
+            border-top: 1px solid var(--border);
             color: var(--muted);
+            font-size: 0.875rem;
         }
         
-        .flavor-price {
-            font-size: 1.25rem;
-            font-weight: 600;
-            color: var(--ok);
-            margin-top: 0.5rem;
-        }
-        
-        .link-btn {
-            background: none;
-            border: none;
-            color: var(--accent);
-            cursor: pointer;
-            text-decoration: underline;
-            font-size: 0.9rem;
+        .info-box strong {
+            color: var(--text);
         }
     </style>
 </head>
 
 <body>
-    <!-- Auth -->
-    <div id="authContainer" class="login-container">
-        <div class="login-box">
-            <h1>☁️ IaaS Cloud</h1>
-            <form id="loginForm">
-                <label><span>Username</span><input name="username" required autofocus></label>
-                <label><span>Password</span><input type="password" name="password" required></label>
-                <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 1rem;">Se connecter</button>
-                <p style="text-align: center; margin-top: 1rem; color: var(--muted); font-size: 0.875rem;">
-                    Pas de compte ? <button type="button" class="link-btn" onclick="showRegisterForm()">S'inscrire</button>
-                </p>
-            </form>
-            <form id="registerForm" style="display: none;">
-                <label><span>Username</span><input name="username" required></label>
-                <label><span>Email</span><input type="email" name="email" required></label>
-                <label><span>Password</span><input type="password" name="password" required></label>
-                <label><span>Confirmer</span><input type="password" name="confirm_password" required></label>
-                <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 1rem;">Créer un compte</button>
-                <p style="text-align: center; margin-top: 1rem; color: var(--muted); font-size: 0.875rem;">
-                    Déjà un compte ? <button type="button" class="link-btn" onclick="showLoginForm()">Se connecter</button>
-                </p>
-            </form>
+    <div class="auth-box">
+        <h1>🎓 Edu-Cloud</h1>
+        <p class="auth-subtitle">Plateforme IaaS Multi-tenant</p>
+
+        <div class="auth-tabs">
+            <button class="auth-tab active" onclick="switchTab('login')">Connexion</button>
+            <button class="auth-tab" onclick="switchTab('register')">Inscription</button>
         </div>
-    </div>
 
-    <!-- User App -->
-    <div id="userApp" class="app-container">
-        <header>
-            <div class="logo">☁️ IaaS Cloud</div>
-            <div class="user-info">
-                <span class="badge">Utilisateur</span>
-                <span id="username"></span>
-                <button class="btn btn-danger" onclick="logout()">Déconnexion</button>
-            </div>
-        </header>
-        <nav>
-            <button class="tab active" onclick="showTab('vms')">Instances</button>
-            <button class="tab" onclick="showTab('billing')">Facturation</button>
-        </nav>
-        <main>
-            <div id="vmsSection" class="section active">
-                <button class="btn btn-primary" onclick="openUserModal()" style="margin-bottom: 1rem;">+ Nouvelle instance</button>
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Nom</th>
-                            <th>Flavor</th>
-                            <th>Image</th>
-                            <th>Statut</th>
-                            <th>IP</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody id="vmsList"></tbody>
-                </table>
-            </div>
-            <div id="billingSection" class="section">
-                <h2 style="margin-bottom: 1rem;">Facturation</h2>
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Date</th>
-                            <th>Description</th>
-                            <th>Montant</th>
-                        </tr>
-                    </thead>
-                    <tbody id="billingList"></tbody>
-                </table>
-                <div style="margin-top: 1rem; text-align: right;"><strong>Total: <span id="totalBilling">0</span> FCFA</strong></div>
-            </div>
-        </main>
-    </div>
+        <!-- Formulaire de connexion -->
+        <form id="loginForm" class="auth-form active">
+            <label>
+                <span>Nom d'utilisateur</span>
+                <input name="username" required autofocus>
+            </label>
+            <label>
+                <span>Mot de passe</span>
+                <input type="password" name="password" required>
+            </label>
+            <button type="submit" class="btn btn-primary">
+                Se connecter
+            </button>
+        </form>
 
-    <!-- Admin App -->
-    <div id="adminApp" class="app-container">
-        <header>
-            <div class="logo">☁️ Admin Panel</div>
-            <div class="user-info">
-                <span class="badge" style="background: rgba(239, 68, 68, 0.2); color: var(--ko);">Admin</span>
-                <span id="adminUsername"></span>
-                <button class="btn btn-danger" onclick="logout()">Déconnexion</button>
-            </div>
-        </header>
-        <nav>
-            <button class="tab active" onclick="showAdminTab('all-vms')">Toutes les VMs</button>
-            <button class="tab" onclick="showAdminTab('images')">Images</button>
-        </nav>
-        <main>
-            <div id="allVmsSection" class="section active">
-                <button class="btn btn-primary" onclick="openAdminModal()" style="margin-bottom: 1rem;">+ Créer VM</button>
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Nom</th>
-                            <th>User</th>
-                            <th>vCPU</th>
-                            <th>RAM</th>
-                            <th>Image</th>
-                            <th>Hôte</th>
-                            <th>Statut</th>
-                            <th>IP</th>
-                        </tr>
-                    </thead>
-                    <tbody id="adminVmsList"></tbody>
-                </table>
-            </div>
-            <div id="imagesSection" class="section">
-                <h2 style="margin-bottom: 1rem;">Images</h2>
-                <div id="imagesList"></div>
-            </div>
-        </main>
-    </div>
+        <!-- Formulaire d'inscription -->
+        <form id="registerForm" class="auth-form">
+            <label>
+                <span>Nom d'utilisateur</span>
+                <input name="username" required>
+            </label>
+            <label>
+                <span>Email</span>
+                <input type="email" name="email" required>
+            </label>
+            <label>
+                <span>Mot de passe</span>
+                <input type="password" name="password" required minlength="6">
+            </label>
+            <label>
+                <span>Confirmer le mot de passe</span>
+                <input type="password" name="confirm_password" required minlength="6">
+            </label>
+            <button type="submit" class="btn btn-primary">
+                Créer un compte
+            </button>
+        </form>
 
-    <!-- Modal User -->
-    <div id="userModal" class="modal">
-        <div class="modal-content">
-            <h2 style="margin-bottom: 1.5rem;">Nouvelle instance</h2>
-            <form id="userDeployForm">
-                <label><span>Nom</span><input name="name" required></label>
-                <label><span>Flavor</span></label>
-                <div id="flavorsList"></div>
-                <label><span>Image</span><select name="image" id="imageSelectUser" required></select></label>
-                <label><span>Utilisateur</span><input name="user" value="ubuntu" required></label>
-                <label><span>Password</span><input type="password" name="password" required></label>
-                <label><span>SSH (opt.)</span><textarea name="sshkey" rows="2"></textarea></label>
-                <div class="actions">
-                    <button type="button" class="btn" onclick="closeModal()" style="background: var(--border);">Annuler</button>
-                    <button type="submit" class="btn btn-primary">Créer</button>
-                </div>
-            </form>
-        </div>
-    </div>
-
-    <!-- Modal Admin -->
-    <div id="adminModal" class="modal">
-        <div class="modal-content">
-            <h2 style="margin-bottom: 1.5rem;">Créer VM (Admin)</h2>
-            <form id="adminDeployForm">
-                <label><span>Nom</span><input name="name" required></label>
-                <label><span>Image</span><select name="image" id="imageSelectAdmin" required></select></label>
-                <label><span>Hôte</span><select name="host" id="hostSelect" required></select></label>
-                <label><span>vCPU</span><input type="number" name="cpu" min="1" max="16" value="2" required></label>
-                <label><span>RAM (Go)</span><input type="number" name="ram" min="1" max="32" value="2" required></label>
-                <label><span>Disque (Go)</span><input type="number" name="disk" min="10" max="500" value="20" required></label>
-                <label><span>User</span><input name="user" value="ubuntu" required></label>
-                <label><span>Password</span><input type="password" name="password" required></label>
-                <label><span>SSH (opt.)</span><textarea name="sshkey" rows="2"></textarea></label>
-                <div class="actions">
-                    <button type="button" class="btn" onclick="closeModal()" style="background: var(--border);">Annuler</button>
-                    <button type="submit" class="btn btn-primary">Créer</button>
-                </div>
-            </form>
+        <div class="info-box">
+            Compte admin : <strong>admin / admin123</strong>
         </div>
     </div>
 
@@ -512,9 +258,6 @@
 
     <script>
         const API_URL = 'http://localhost:5000';
-        let token = localStorage.getItem('token');
-        let currentUser = null;
-        let selectedFlavor = 'M';
 
         function showToast(msg, type = 'success') {
             const toast = document.getElementById('toast');
@@ -523,39 +266,61 @@
             setTimeout(() => toast.classList.remove('show'), 4000);
         }
 
-        function showRegisterForm() {
-            document.getElementById('loginForm').style.display = 'none';
-            document.getElementById('registerForm').style.display = 'block';
+        function switchTab(tab) {
+            document.querySelectorAll('.auth-tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.auth-form').forEach(f => f.classList.remove('active'));
+            event.target.classList.add('active');
+            document.getElementById(tab + 'Form').classList.add('active');
         }
 
-        function showLoginForm() {
-            document.getElementById('registerForm').style.display = 'none';
-            document.getElementById('loginForm').style.display = 'block';
-        }
-
-        async function apiRequest(endpoint, options = {}) {
-            const headers = {
-                'Content-Type': 'application/json',
-                ...options.headers
-            };
-            if (token) headers['Authorization'] = `Bearer ${token}`;
-            const response = await fetch(`${API_URL}${endpoint}`, {...options,
-                headers
-            });
-            if (response.status === 401) {
-                logout();
-                throw new Error('Non autorisé');
-            }
-            return response;
-        }
-
-        document.getElementById('registerForm').addEventListener('submit', async(e) => {
+        // Connexion
+        document.getElementById('loginForm').addEventListener('submit', async(e) => {
             e.preventDefault();
             const data = Object.fromEntries(new FormData(e.target));
+
+            try {
+                const response = await fetch(`${API_URL}/auth/login`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(data)
+                });
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    localStorage.setItem('token', result.token);
+                    localStorage.setItem('username', result.username);
+                    localStorage.setItem('is_admin', result.is_admin);
+
+                    // Redirection selon le rôle
+                    if (result.is_admin) {
+                        window.location.href = 'admin.html';
+                    } else {
+                        window.location.href = 'user.html';
+                    }
+                } else {
+                    showToast(result.error, 'error');
+                }
+            } catch (e) {
+                showToast('Erreur de connexion au serveur', 'error');
+            }
+        });
+
+        // Inscription
+        document.getElementById('registerForm').addEventListener('submit', async(e) => {
+            e.preventDefault();
+            const formData = new FormData(e.target);
+            const data = Object.fromEntries(formData);
+
             if (data.password !== data.confirm_password) {
-                showToast('Mots de passe différents', 'error');
+                showToast('Les mots de passe ne correspondent pas', 'error');
                 return;
             }
+
+            delete data.confirm_password;
+
             try {
                 const response = await fetch(`${API_URL}/auth/register`, {
                     method: 'POST',
@@ -564,289 +329,92 @@
                     },
                     body: JSON.stringify(data)
                 });
+
                 const result = await response.json();
+
                 if (response.ok) {
-                    showToast('Compte créé !', 'success');
-                    showLoginForm();
+                    showToast('Compte créé ! Vous pouvez vous connecter', 'success');
+                    switchTab('login');
+                    document.getElementById('loginForm').querySelector('[name="username"]').value = data.username;
                     e.target.reset();
                 } else {
                     showToast(result.error, 'error');
                 }
             } catch (e) {
-                showToast('Erreur', 'error');
+                showToast('Erreur lors de l\'inscription', 'error');
             }
         });
 
-        document.getElementById('loginForm').addEventListener('submit', async(e) => {
-            e.preventDefault();
-            const data = Object.fromEntries(new FormData(e.target));
+        // Vérifier si déjà connecté
+        const token = localStorage.getItem('token');
+        const isAdmin = localStorage.getItem('is_admin') === 'true';
+
+        if (token) {
+            // Vérifier la validité du token
+            fetch(`${API_URL}/auth/me`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            }).then(async response => {
+                if (response.ok) {
+                    const user = await response.json();
+                    window.location.href = user.is_admin ? 'admin.html' : 'user.html';
+                } else {
+                    localStorage.clear();
+                }
+            }).catch(() => {
+                localStorage.clear();
+            });
+        }
+
+        async function handleRegister(event) {
+            event.preventDefault();
+
+            const formData = new FormData(event.target);
+            const data = {
+                username: formData.get('username'),
+                password: formData.get('password'),
+                email: formData.get('email')
+            };
+
             try {
-                const response = await apiRequest('/auth/login', {
+                const response = await fetch(`${API_URL}/auth/register`, {
                     method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
                     body: JSON.stringify(data)
                 });
+
                 const result = await response.json();
+
                 if (response.ok) {
-                    token = result.token;
-                    currentUser = result.username;
-                    localStorage.setItem('token', token);
-                    document.getElementById('authContainer').style.display = 'none';
-                    if (currentUser === 'admin') {
-                        document.getElementById('adminApp').classList.add('show');
-                        document.getElementById('adminUsername').textContent = currentUser;
-                        loadAdminData();
+
+                    localStorage.setItem('token', result.token);
+                    localStorage.setItem('username', result.username);
+                    localStorage.setItem('user_id', result.user_id);
+
+                    //  Afficher message de succès
+                    showToast(`Bienvenue ${result.username} !`, 'success');
+
+                    //  REDIRECTION automatique vers la bonne page
+                    if (result.is_admin) {
+                        window.location.href = 'admin.html';
                     } else {
-                        document.getElementById('userApp').classList.add('show');
-                        document.getElementById('username').textContent = currentUser;
-                        loadUserData();
+                        window.location.href = 'user.html';
                     }
                 } else {
-                    showToast(result.error, 'error');
+                    showToast(result.error || 'Erreur lors de l\'inscription', 'error');
                 }
-            } catch (e) {
-                showToast('Erreur', 'error');
-            }
-        });
 
-        function logout() {
-            token = null;
-            currentUser = null;
-            localStorage.removeItem('token');
-            document.getElementById('authContainer').style.display = 'flex';
-            document.getElementById('userApp').classList.remove('show');
-            document.getElementById('adminApp').classList.remove('show');
-        }
-
-        function showTab(tab) {
-            document.querySelectorAll('#userApp .tab').forEach(t => t.classList.remove('active'));
-            document.querySelectorAll('#userApp .section').forEach(s => s.classList.remove('active'));
-            event.target.classList.add('active');
-            document.getElementById(`${tab}Section`).classList.add('active');
-            if (tab === 'billing') loadBilling();
-        }
-
-        function showAdminTab(tab) {
-            document.querySelectorAll('#adminApp .tab').forEach(t => t.classList.remove('active'));
-            document.querySelectorAll('#adminApp .section').forEach(s => s.classList.remove('active'));
-            event.target.classList.add('active');
-            document.getElementById(`${tab.replace('-', '')}Section`).classList.add('active');
-            if (tab === 'images') loadImages();
-        }
-
-        function openUserModal() {
-            document.getElementById('userModal').classList.add('show');
-            loadFlavors();
-            loadAvailableImages('imageSelectUser');
-        }
-
-        function openAdminModal() {
-            document.getElementById('adminModal').classList.add('show');
-            loadAvailableImages('imageSelectAdmin');
-            loadHosts();
-        }
-
-        function closeModal() {
-            document.getElementById('userModal').classList.remove('show');
-            document.getElementById('adminModal').classList.remove('show');
-        }
-
-        window.onclick = (e) => {
-            if (e.target.classList.contains('modal')) closeModal();
-        };
-
-        async function loadFlavors() {
-            const response = await apiRequest('/flavors');
-            const flavors = await response.json();
-            document.getElementById('flavorsList').innerHTML = flavors.map(f => `
-                <div class="flavor-card ${f.id === selectedFlavor ? 'selected' : ''}" onclick="selectFlavor('${f.id}')">
-                    <h3>${f.name} (${f.id})</h3>
-                    <div class="flavor-specs">
-                        <span>${f.vcpu} vCPU</span>
-                        <span>${f.ram_mb / 1024} GB RAM</span>
-                        <span>${f.disk_gb} GB</span>
-                    </div>
-                    <div class="flavor-price">${f.price_month} FCFA/mois</div>
-                </div>
-            `).join('');
-        }
-
-        function selectFlavor(id) {
-            selectedFlavor = id;
-            document.querySelectorAll('.flavor-card').forEach(c => c.classList.remove('selected'));
-            event.target.closest('.flavor-card').classList.add('selected');
-        }
-
-        async function loadAvailableImages(selectId) {
-            const response = await fetch(`${API_URL}/images`);
-            const images = await response.json();
-            const select = document.getElementById(selectId);
-            const available = images.filter(img => img.downloaded);
-            if (available.length === 0) {
-                select.innerHTML = '<option value="">Aucune image</option>';
-            } else {
-                select.innerHTML = available.map(img =>
-                    `<option value="${img.name}">${img.name} (${img.size_mb} MB)</option>`
-                ).join('');
+            } catch (error) {
+                console.error('Erreur inscription:', error);
+                showToast('Erreur de connexion au serveur', 'error');
             }
         }
 
-        async function loadHosts() {
-            const response = await apiRequest('/hosts');
-            const hosts = await response.json();
-            document.getElementById('hostSelect').innerHTML = hosts.map(h =>
-                `<option value="${h.id}">${h.name}</option>`
-            ).join('');
-        }
-
-        async function loadUserData() {
-            loadVMs();
-            loadBilling();
-            setInterval(loadVMs, 10000);
-        }
-
-        async function loadAdminData() {
-            loadAllVMs();
-            loadImages();
-            setInterval(loadAllVMs, 10000);
-        }
-
-        async function loadVMs() {
-            const response = await apiRequest('/vms');
-            const vms = await response.json();
-            const tbody = document.getElementById('vmsList');
-            if (vms.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:2rem;">Aucune instance</td></tr>';
-            } else {
-                tbody.innerHTML = vms.map(vm => `
-                    <tr>
-                        <td><strong>${vm.name}</strong></td>
-                        <td><span class="badge">${vm.flavor}</span></td>
-                        <td>${vm.image}</td>
-                        <td><span class="status ${vm.status}">${vm.status}</span></td>
-                        <td>${vm.ip_address || '-'}</td>
-                        <td>
-                            <button class="btn btn-success" onclick="startVM('${vm.name}')">Start</button>
-                            <button class="btn btn-danger" onclick="stopVM('${vm.name}')">Stop</button>
-                        </td>
-                    </tr>
-                `).join('');
-            }
-        }
-
-        async function loadAllVMs() {
-            const response = await apiRequest('/admin/vms/all');
-            const data = await response.json();
-            const tbody = document.getElementById('adminVmsList');
-            if (data.vms.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:2rem;">Aucune VM</td></tr>';
-            } else {
-                tbody.innerHTML = data.vms.map(vm => `
-                    <tr>
-                        <td><strong>${vm.name}</strong></td>
-                        <td>${vm.user_id || '-'}</td>
-                        <td>${vm.vcpu}</td>
-                        <td>${vm.ram_mb}</td>
-                        <td>${vm.image}</td>
-                        <td>${vm.host_id}</td>
-                        <td><span class="status ${vm.status}">${vm.status}</span></td>
-                        <td>${vm.ip_address || '-'}</td>
-                    </tr>
-                `).join('');
-            }
-        }
-
-        async function loadBilling() {
-            const response = await apiRequest('/billing');
-            const data = await response.json();
-            const tbody = document.getElementById('billingList');
-            if (data.bills.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;padding:2rem;">Aucune facturation</td></tr>';
-            } else {
-                tbody.innerHTML = data.bills.map(b => `
-                    <tr>
-                        <td>${new Date(b.created_at).toLocaleString('fr-FR')}</td>
-                        <td>${b.description}</td>
-                        <td><strong>${b.amount.toFixed(2)} FCFA</strong></td>
-                    </tr>
-                `).join('');
-            }
-            document.getElementById('totalBilling').textContent = data.total.toFixed(2);
-        }
-
-        async function loadImages() {
-            const response = await fetch(`${API_URL}/images`);
-            const images = await response.json();
-            const container = document.getElementById('imagesList');
-            container.innerHTML = `<table><thead><tr><th>Nom</th><th>Statut</th><th>Taille</th></tr></thead><tbody>${
-                images.map(img => `<tr><td>${img.name}</td><td>${img.downloaded ? '✓' : '✗'}</td><td>${img.size_mb} MB</td></tr>`).join('')
-            }</tbody></table>`;
-        }
-
-        async function startVM(name) {
-            await apiRequest(`/vms/${name}/start`, { method: 'POST' });
-            showToast(`VM ${name} démarrée`, 'success');
-            setTimeout(loadVMs, 1000);
-        }
-
-        async function stopVM(name) {
-            await apiRequest(`/vms/${name}/stop`, { method: 'POST' });
-            showToast(`VM ${name} arrêtée`, 'success');
-            setTimeout(loadVMs, 1000);
-        }
-
-        document.getElementById('userDeployForm').addEventListener('submit', async(e) => {
-            e.preventDefault();
-            const data = Object.fromEntries(new FormData(e.target));
-            data.flavor = selectedFlavor;
-            closeModal();
-            showToast(`Création de ${data.name}...`, 'warning');
-            try {
-                const response = await apiRequest('/vms', { method: 'POST', body: JSON.stringify(data) });
-                const result = await response.json();
-                if (response.ok) {
-                    showToast(`VM ${data.name} créée !`, 'success');
-                    loadVMs();
-                    loadBilling();
-                    e.target.reset();
-                } else {
-                    showToast(result.error, 'error');
-                }
-            } catch (e) {
-                showToast('Erreur: ' + e.message, 'error');
-            }
-        });
-
-        document.getElementById('adminDeployForm').addEventListener('submit', async(e) => {
-            e.preventDefault();
-            const data = Object.fromEntries(new FormData(e.target));
-            closeModal();
-            showToast(`Création de ${data.name}...`, 'warning');
-            try {
-                const response = await apiRequest('/admin/vms', { method: 'POST', body: JSON.stringify(data) });
-                const result = await response.json();
-                if (response.ok) {
-                    showToast(`VM ${data.name} créée !`, 'success');
-                    loadAllVMs();
-                    e.target.reset();
-                } else {
-                    showToast(result.error, 'error');
-                }
-            } catch (e) {
-                showToast('Erreur: ' + e.message, 'error');
-            }
-        });
-
-        // Init
-        if (token) {
-            apiRequest('/vms').then(response => {
-                if (response.ok) {
-                    document.getElementById('authContainer').style.display = 'none';
-                    // Détecter si admin
-                } else {
-                    logout();
-                }
-            }).catch(() => logout());
-        }
+        // ✅ Attacher au formulaire d'inscription
+        document.getElementById('registerForm').addEventListener('submit', handleRegister);
     </script>
 </body>
 

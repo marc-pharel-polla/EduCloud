@@ -1,4 +1,8 @@
-
+#!/usr/bin/env python3
+"""
+IaaS Multi-tenant avec SQLAlchemy ORM
+VERSION MISE À JOUR pour support multi-fichiers HTML/JS
+"""
 import os
 import subprocess
 import libvirt
@@ -8,16 +12,18 @@ import secrets
 import hashlib
 import xml.etree.ElementTree as ET
 from datetime import datetime, timedelta
-from flask import Flask, request, jsonify, g
+from flask import Flask, request, jsonify, g, send_from_directory
 from flask_cors import CORS
 import jwt
+import shutil
+import re
 
-# Charger les variables d'environnement depuis .env
+# Charger les variables d'environnement
 try:
     from dotenv import load_dotenv
     load_dotenv()
 except ImportError:
-    pass  # python-dotenv non installé, utiliser les variables d'environnement système
+    pass
 
 # Import des models SQLAlchemy
 from models import (
@@ -26,20 +32,26 @@ from models import (
     seed_database
 )
 
-app = Flask(__name__)
+# ========================================
+# CONFIGURATION FLASK
+# ========================================
+
+app = Flask(__name__,
+            template_folder='templates',  # ✅ Dossier pour les HTML
+            static_folder='static')        # ✅ Dossier pour les JS/CSS
+
 CORS(app)
 
 # Configuration
 SECRET_KEY = os.getenv('SECRET_KEY', secrets.token_hex(32))
 
 # Configuration Base de Données
-# IMPORTANT : Utilisez vos propres identifiants
 DATABASE_URL = os.getenv(
     'DATABASE_URL',
-    'mysql+pymysql://iaas_inf4107:TPinf4107@localhost/Edu_Cloud'
+    'sqlite:///Edu_Cloud.db'
 )
 
-BASE_IMG_DIR = os.path.expanduser('~/Codes/base-images')
+BASE_IMG_DIR = os.environ.get('IMAGES_DIR', '/var/lib/educloud/images')
 DISK_DIR = os.path.expanduser('~/.local/share/libvirt/images')
 
 os.makedirs(BASE_IMG_DIR, exist_ok=True)
@@ -50,6 +62,7 @@ BASE_IMAGES = {
     'ubuntu-22.04': 'https://cloud-images.ubuntu.com/releases/22.04/release/ubuntu-22.04-server-cloudimg-amd64.img',
     'ubuntu-24.04': 'https://cloud-images.ubuntu.com/releases/24.04/release/ubuntu-24.04-server-cloudimg-amd64.img',
     'debian-12': 'https://cloud.debian.org/images/cloud/bookworm/latest/debian-12-generic-amd64.qcow2',
+    'fedora-43': 'https://download.fedoraproject.org/pub/fedora/linux/releases/43/Cloud/x86_64/images/Fedora-Cloud-Base-Generic-43-1.6.x86_64.qcow2'
 }
 
 # Flavors avec prix
@@ -68,11 +81,43 @@ KVM_HOSTS = {
         'max_vcpu': 8,
         'max_ram_mb': 16384,
         'max_disk_gb': 200
-    }
+    },
+    'fedora-pmp': {
+        'uri': 'qemu+ssh://polla@192.168.1.181/system',
+        'name': 'Fedora PMP (Distant)',
+        'disk_dir': '/var/lib/libvirt/images',
+        
+        # ✅ Spécifications réelles de votre PC
+        'max_vcpu': 4,      # 4 vCPUs disponibles
+        'max_ram_mb': 7835,  # ~7.7 GB RAM
+        'max_disk_gb': 100,  # Ajustez selon l'espace disque disponible
+        
+        'priority': 2  # Utilisé si local est plein
+    },
+    
 }
 
 # Initialiser la base de données
 db = Database(DATABASE_URL)
+
+# ========================================
+# ROUTES POUR SERVIR LES FICHIERS
+# ========================================
+
+@app.route('/')
+def index():
+    """Page d'accueil - Connexion"""
+    return send_from_directory('templates', 'index.html')
+
+@app.route('/<path:filename>')
+def serve_files(filename):
+    """Sert les fichiers HTML, JS et autres ressources"""
+    # Fichiers HTML depuis templates/
+    if filename.endswith('.html'):
+        return send_from_directory('templates', filename)
+    
+    # Fichiers JS, CSS, etc. depuis static/
+    return send_from_directory('static', filename)
 
 # ========================================
 # HELPERS
@@ -98,12 +143,14 @@ def verify_password(password, password_hash):
     """Vérifie un mot de passe"""
     return hash_password(password) == password_hash
 
-def create_token(user_id, username):
+def create_token(user_id, username, is_admin=False):
     """Crée un JWT token"""
+    from datetime import timezone
     payload = {
         'user_id': user_id,
         'username': username,
-        'exp': datetime.utcnow() + timedelta(days=7)
+        'is_admin': is_admin,
+        'exp': datetime.now(timezone.utc) + timedelta(days=7)  # ✅ Version non-dépréciée
     }
     return jwt.encode(payload, SECRET_KEY, algorithm='HS256')
 
@@ -128,6 +175,7 @@ def require_auth(f):
         
         g.user_id = payload['user_id']
         g.username = payload['username']
+        g.is_admin = payload.get('is_admin', False)  # ✅ RÉCUPÈRE is_admin
         return f(*args, **kwargs)
     wrapper.__name__ = f.__name__
     return wrapper
@@ -137,29 +185,19 @@ def require_auth(f):
 # ========================================
 
 def get_base_image(image_name):
-    """
-    Récupère le chemin d'une image locale
-    Cherche d'abord .qcow2, puis .img
-    """
+    """Récupère le chemin d'une image locale"""
     if image_name not in BASE_IMAGES:
         return None
     
-    # Essayer .qcow2
-    filename_qcow2 = f"{image_name}.qcow2"
-    path_qcow2 = os.path.join(BASE_IMG_DIR, filename_qcow2)
-    if os.path.exists(path_qcow2):
-        print(f"✓ Image trouvée: {path_qcow2}")
-        return path_qcow2
+    filename = f"{image_name}.qcow2"
+    dest_path = os.path.join(BASE_IMG_DIR, filename)
     
-    # Essayer .img
-    filename_img = f"{image_name}.img"
-    path_img = os.path.join(BASE_IMG_DIR, filename_img)
-    if os.path.exists(path_img):
-        print(f"✓ Image trouvée: {path_img}")
-        return path_img
-    
-    print(f"❌ Image non trouvée: {image_name}")
-    return None
+    if os.path.exists(dest_path):
+        print(f"✓ Image trouvée: {dest_path}")
+        return dest_path
+    else:
+        print(f"❌ Image non trouvée: {dest_path}")
+        return None
 
 def list_available_images():
     """Liste les images réellement disponibles localement"""
@@ -185,16 +223,13 @@ def list_available_images():
 # ========================================
 
 def get_user_network(user_id, host_id):
-    """Récupère ou crée le réseau de l'utilisateur (avec ORM)"""
+    """Récupère ou crée le réseau de l'utilisateur"""
     network_repo = NetworkRepository(g.db_session)
-    
-    # Chercher le réseau existant
     network = network_repo.find_by_user_and_host(user_id, host_id)
     
     if network:
         return network
     
-    # Créer un nouveau réseau
     network_name = f"net-user-{user_id}"
     subnet = f"10.{100 + user_id}.0.0/24"
     
@@ -248,8 +283,15 @@ def get_connection(host_id):
         raise ValueError(f"Hôte inconnu: {host_id}")
     
     config = KVM_HOSTS[host_id]
-    conn = libvirt.open(config['uri'])
-    return conn, config
+    
+    try:
+        conn = libvirt.open(config['uri'])
+        if conn is None:
+            raise Exception(f"Impossible de se connecter à {config['name']}")
+        return conn, config
+    except Exception as e:
+        print(f"❌ Erreur connexion {host_id}: {e}")
+        raise
 
 def get_host_resources(host_id):
     """Calcule les ressources disponibles"""
@@ -279,7 +321,7 @@ def get_host_resources(host_id):
     }
 
 def select_best_host(flavor):
-    """Sélectionne le meilleur hôte"""
+    """Sélectionne le meilleur hôte (least used strategy)"""
     flavor_config = FLAVORS[flavor]
     best_host = None
     best_score = -1
@@ -339,12 +381,20 @@ ssh_pwauth: true
 packages:
   - qemu-guest-agent
 runcmd:
-  - systemctl enable qemu-guest-agent
-  - systemctl start qemu-guest-agent
+  - ip link set enp1s0 up
+  - dhclient enp1s0
+  - systemctl enable qemu-guest-agent || true
+  - systemctl start qemu-guest-agent || true
 """
     
     meta_data = f"instance-id: {hostname}\nlocal-hostname: {hostname}\n"
-    network_config = "version: 2\nethernets:\n  eth0:\n    dhcp4: true\n"
+    
+    network_config = """version: 2
+ethernets:
+  enp1s0:
+    dhcp4: true
+    dhcp6: false
+"""
     
     iso_path = os.path.join(host_config['disk_dir'], f"{name}-seed.iso")
     
@@ -367,21 +417,29 @@ runcmd:
     
     return iso_path
 
-# ========================================
-# ROUTES API
-# ========================================
-
-@app.route('/')
-def index():
+def _get_vm_ip(dom):
+    """Récupère l'IP d'une VM via qemu-guest-agent"""
     try:
-        with open('./templates/index.html', 'r') as f:
-            return f.read()
+        if not dom.isActive():
+            return None
+        
+        ifaces = dom.interfaceAddresses(libvirt.VIR_DOMAIN_INTERFACE_ADDRESSES_SRC_AGENT, 0)
+        for name, iface in ifaces.items():
+            if name != 'lo' and iface['addrs']:
+                for addr in iface['addrs']:
+                    if addr['type'] == 0:
+                        return addr['addr']
     except:
-        return jsonify({'message': 'IaaS API v2 avec SQLAlchemy'})
+        pass
+    return None
 
-# Authentification
+# ========================================
+# ROUTES API - AUTHENTIFICATION
+# ========================================
+
 @app.route('/auth/register', methods=['POST'])
 def register():
+    """Inscription d'un nouvel utilisateur"""
     data = request.json
     username = data.get('username')
     password = data.get('password')
@@ -390,15 +448,45 @@ def register():
     if not username or not password:
         return jsonify({'error': 'Username et password requis'}), 400
     
+    # Validation
+    if len(username) < 3:
+        return jsonify({'error': 'Username trop court (minimum 3 caractères)'}), 400
+    
+    if len(password) < 6:
+        return jsonify({'error': 'Mot de passe trop court (minimum 6 caractères)'}), 400
+    
     user_repo = UserRepository(g.db_session)
     
     if user_repo.find_by_username(username):
         return jsonify({'error': 'Utilisateur existe déjà'}), 409
     
     try:
-        user = user_repo.create(username, hash_password(password), email)
-        return jsonify({'message': 'Utilisateur créé', 'user': user.to_dict()}), 201
+        # Créer l'utilisateur
+        user = user_repo.create(
+            username=username,
+            password_hash=hash_password(password),
+            email=email,
+            is_admin=False
+        )
+        
+        print(f"✅ Nouvel utilisateur inscrit: {username} (ID: {user.id})")
+        
+        # ✅ AJOUT : Créer le token directement pour auto-login
+        token = create_token(user.id, user.username, user.is_admin)
+        
+        # ✅ RETOUR : Token + infos user pour connexion auto
+        return jsonify({
+            'message': 'Compte créé avec succès',
+            'user': user.to_dict(),
+            'token': token,  # ✅ Token pour auto-login
+            'username': username,
+            'user_id': user.id,
+            'is_admin': user.is_admin
+        }), 201
+        
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         return jsonify({'error': str(e)}), 500
 
 @app.route('/auth/login', methods=['POST'])
@@ -413,15 +501,34 @@ def login():
     if not user or not verify_password(password, user.password_hash):
         return jsonify({'error': 'Identifiants invalides'}), 401
     
-    token = create_token(user.id, user.username)
-    return jsonify({'token': token, 'username': username, 'user': user.to_dict()})
+    token = create_token(user.id, user.username, user.is_admin)  # ✅ PASSE is_admin
+    return jsonify({
+        'token': token,
+        'username': username,
+        'user_id': user.id,
+        'is_admin': user.is_admin  # ✅ RETOURNE is_admin au frontend
+    })
 
-# Flavors
+@app.route('/auth/me')
+@require_auth
+def get_current_user():
+    """Retourne les infos de l'utilisateur connecté"""
+    user_repo = UserRepository(g.db_session)
+    user = user_repo.find_by_id(g.user_id)
+    
+    if not user:
+        return jsonify({'error': 'Utilisateur non trouvé'}), 404
+    
+    return jsonify(user.to_dict())  # ✅ to_dict() inclut is_admin
+
+# ========================================
+# ROUTES API - RESOURCES
+# ========================================
+
 @app.route('/flavors')
 def list_flavors():
     return jsonify([{'id': k, **v} for k, v in FLAVORS.items()])
 
-# Hosts (liste des hôtes KVM disponibles)
 @app.route('/hosts')
 def list_hosts():
     """Liste les hôtes KVM disponibles"""
@@ -430,36 +537,55 @@ def list_hosts():
         for k, v in KVM_HOSTS.items()
     ])
 
-# Images
+@app.route('/hosts/status')
+@require_auth
+def hosts_status():
+    """✅ NOUVEAU: Liste les hôtes KVM avec leur statut"""
+    hosts_info = []
+    
+    for host_id, config in KVM_HOSTS.items():
+        try:
+            conn, _ = get_connection(host_id)
+            resources = get_host_resources(host_id)
+            
+            vm_count = len(conn.listAllDomains())
+            vm_running = len([d for d in conn.listAllDomains() if d.isActive()])
+            
+            conn.close()
+            
+            hosts_info.append({
+                'id': host_id,
+                'name': config['name'],
+                'uri': config['uri'],
+                'status': 'online',
+                'vms_total': vm_count,
+                'vms_running': vm_running,
+                'resources': resources
+            })
+        except Exception as e:
+            hosts_info.append({
+                'id': host_id,
+                'name': config['name'],
+                'uri': config['uri'],
+                'status': 'offline',
+                'error': str(e)
+            })
+    
+    return jsonify(hosts_info)
+
 @app.route('/images')
 def list_images():
-    """Liste les images avec support .img et .qcow2"""
     images = []
     for name, url in BASE_IMAGES.items():
-        # Chercher .qcow2
-        filename_qcow2 = f"{name}.qcow2"
-        path_qcow2 = os.path.join(BASE_IMG_DIR, filename_qcow2)
+        filename = f"{name}.qcow2"
+        path = os.path.join(BASE_IMG_DIR, filename)
         
-        # Chercher .img
-        filename_img = f"{name}.img"
-        path_img = os.path.join(BASE_IMG_DIR, filename_img)
-        
-        is_downloaded = False
+        is_downloaded = os.path.exists(path)
         size_mb = 0
-        actual_path = None
         
-        if os.path.exists(path_qcow2):
-            is_downloaded = True
-            actual_path = path_qcow2
+        if is_downloaded:
             try:
-                size_mb = round(os.path.getsize(path_qcow2) / (1024**2), 1)
-            except:
-                pass
-        elif os.path.exists(path_img):
-            is_downloaded = True
-            actual_path = path_img
-            try:
-                size_mb = round(os.path.getsize(path_img) / (1024**2), 1)
+                size_mb = round(os.path.getsize(path) / (1024**2), 1)
             except:
                 pass
         
@@ -468,52 +594,69 @@ def list_images():
             'url': url,
             'downloaded': is_downloaded,
             'size_mb': size_mb,
-            'path': actual_path
+            'path': path if is_downloaded else None
         })
     
     return jsonify(images)
 
-@app.route('/images/download/<image_name>', methods=['POST'])
-def download_image_manually(image_name):
-    if image_name not in BASE_IMAGES:
-        return jsonify({'error': 'Image inconnue'}), 404
-    
-    filename = f"{image_name}.qcow2"
-    dest_path = os.path.join(BASE_IMG_DIR, filename)
-    
-    if os.path.exists(dest_path):
-        return jsonify({'message': 'Image déjà téléchargée', 'path': dest_path})
-    
+@app.route('/images/available')
+def list_available_images_route():
+    """Liste UNIQUEMENT les images disponibles localement"""
     try:
-        import threading
-        
-        def download_async():
-            download_base_image(image_name)
-        
-        thread = threading.Thread(target=download_async)
-        thread.start()
-        
-        return jsonify({
-            'message': f'Téléchargement de {image_name} démarré',
-            'status': 'downloading'
-        })
+        available = list_available_images()
+        return jsonify(available)
     except Exception as e:
-        return jsonify({'error': str(e)}), 500 
+        return jsonify({'error': str(e)}), 500
 
-# VMs
+# ========================================
+# ROUTES API - VMS
+# ========================================
+
 @app.route('/vms', methods=['GET'])
 @require_auth
 def list_vms():
-    """Liste les VMs de l'utilisateur connecté (isolation stricte)"""
+    """Liste les VMs de l'utilisateur connecté"""
     vm_repo = VMRepository(g.db_session)
     vms = vm_repo.find_by_user(g.user_id)
     
     result = []
     for vm in vms:
         vm_dict = vm.to_dict()
-        flavor = FLAVORS.get(vm.flavor, {})
-        vm_dict['vcpu'] = flavor.get('vcpu', 0)
-        vm_dict['ram_mb'] = flavor.get('ram_mb', 0)
+        
+        if vm.flavor in FLAVORS:
+            flavor = FLAVORS[vm.flavor]
+            vm_dict['vcpu'] = flavor.get('vcpu', 0)
+            vm_dict['ram_mb'] = flavor.get('ram_mb', 0)
+        elif vm.flavor == 'admin-custom':
+            try:
+                conn, _ = get_connection(vm.host_id)
+                dom = conn.lookupByName(vm.name)
+                info = dom.info()
+                vm_dict['vcpu'] = info[3]
+                vm_dict['ram_mb'] = info[2] // 1024
+                conn.close()
+            except:
+                vm_dict['vcpu'] = 0
+                vm_dict['ram_mb'] = 0
+        else:
+            vm_dict['vcpu'] = 0
+            vm_dict['ram_mb'] = 0
+        
+        try:
+            conn, _ = get_connection(vm.host_id)
+            dom = conn.lookupByName(vm.name)
+            vm_dict['ip_address'] = _get_vm_ip(dom)
+            
+            info = dom.info()
+            real_status = 'running' if info[0] == 1 else 'stopped'
+            if real_status != vm.status:
+                vm_repo.update_status(vm.id, real_status)
+                vm_dict['status'] = real_status
+            
+            conn.close()
+        except:
+            vm_dict['ip_address'] = None
+        
         result.append(vm_dict)
     
     return jsonify(result)
@@ -521,64 +664,130 @@ def list_vms():
 @app.route('/vms', methods=['POST'])
 @require_auth
 def create_vm():
+    """Crée une nouvelle VM"""
     try:
         data = request.json
-        name = data['name']
-        flavor = data['flavor']
-        image = data['image']
+        
+        # ✅ Nom affiché (ce que l'utilisateur tape)
+        display_name = data.get('name', '').strip()
+        
+        # ✅ Validation du nom affiché
+        if not display_name:
+            return jsonify({'error': 'Nom de VM requis'}), 400
+            
+        if not re.match(r'^[a-zA-Z0-9-_]+$', display_name):
+            return jsonify({'error': 'Nom invalide (utilisez seulement a-z, 0-9, - et _)'}), 400
+        
+        if len(display_name) > 50:
+            return jsonify({'error': 'Nom trop long (maximum 50 caractères)'}), 400
+        
+        # ✅ Vérifier si l'utilisateur a déjà une VM avec ce nom affiché
+        vm_repo = VMRepository(g.db_session)
+        existing_vm = vm_repo.find_by_display_name_and_user(display_name, g.user_id)
+        if existing_vm:
+            return jsonify({
+                'error': f'Vous avez déjà une VM nommée "{display_name}"',
+                'suggestion': f'Essayez: {display_name}-2, {display_name}-v2, etc.'
+            }), 409
+        
+        # ✅ Générer le nom technique unique
+        # Format: user{id}_{display_name}_{timestamp}
+        timestamp = int(time.time())
+        name = f"user{g.user_id}_{display_name}_{timestamp}"
+        
+        image = data.get('image')
+        if not image:
+            return jsonify({'error': 'Image requise'}), 400
+            
         user = data.get('user', 'ubuntu')
-        password = data['password']
+        password = data.get('password')
+        if not password:
+            return jsonify({'error': 'Mot de passe requis'}), 400
+            
         sshkey = data.get('sshkey', '')
-        
-        if flavor not in FLAVORS:
-            return jsonify({'error': 'Flavor invalide'}), 400
-        
-        flavor_config = FLAVORS[flavor]
-        host_id = select_best_host(flavor)
-        
+
+        # Pré-checks des outils
+        for tool in ('virt-install', 'qemu-img', 'genisoimage'):
+            if shutil.which(tool) is None:
+                return jsonify({'error': f'Binary requis introuvable: {tool}'}), 500
+
+        # Gestion flavor / ressources
+        if g.is_admin:
+            cpu = int(data.get('cpu', 2))
+            ram_mb = int(data.get('ram', 4096))
+            disk_gb = int(data.get('disk', 20))
+            flavor = 'admin-custom'
+            host_id = data.get('host', 'local')
+        else:
+            if 'flavor' not in data:
+                return jsonify({'error': 'Flavor requis'}), 400
+            flavor = data['flavor']
+            if flavor not in FLAVORS:
+                return jsonify({'error': 'Flavor invalide'}), 400
+            cfg = FLAVORS[flavor]
+            cpu = cfg['vcpu']
+            ram_mb = cfg['ram_mb']
+            disk_gb = cfg['disk_gb']
+            host_id = select_best_host(flavor)
+
         # Réseau utilisateur
         network = get_user_network(g.user_id, host_id)
-        
-        # Créer la VM dans la DB
-        vm_repo = VMRepository(g.db_session)
+
+        # ✅ Créer entrée DB avec display_name
         vm = vm_repo.create(
             user_id=g.user_id,
-            name=name,
+            name=name,                    # Nom technique unique
+            display_name=display_name,    # ✅ Nom affiché
             host_id=host_id,
             flavor=flavor,
             image=image,
             network_id=network.id,
             status='creating'
         )
-        
-        # Récupérer l'image locale
+
+        # Vérifier image
         base_image = get_base_image(image)
         if not base_image:
+            vm_repo.update_status(vm.id, 'error')
             return jsonify({
-                'error': f'Image {image} non disponible localement',
-                'message': 'Téléchargez d\'abord l\'image avec: ./download-images.sh',
-                'url': BASE_IMAGES.get(image)
+                'error': f'Image {image} non disponible',
+                'message': 'Téléchargez l\'image avec: ./download-images.sh'
             }), 400
-        
-        # Créer le disque
+
+        # Connexion hôte
         conn, host_config = get_connection(host_id)
+
+        # Créer disque
         disk_path = os.path.join(host_config['disk_dir'], f"{name}.qcow2")
-        subprocess.run([
-            'qemu-img', 'create', '-f', 'qcow2',
-            '-F', 'qcow2', '-b', base_image,
-            disk_path, f"{flavor_config['disk_gb']}G"
-        ], check=True)
-        
+        try:
+            r = subprocess.run([
+                'qemu-img', 'create', '-f', 'qcow2', '-F', 'qcow2', '-b', base_image,
+                disk_path, f"{disk_gb}G"
+            ], capture_output=True, text=True, check=False)
+            if r.returncode != 0:
+                raise RuntimeError(f"qemu-img failed: {r.stderr.strip()}")
+        except Exception as e:
+            conn.close()
+            vm_repo.update_status(vm.id, 'error')
+            return jsonify({'error': 'Erreur création disque', 'detail': str(e)}), 500
+
         # Cloud-init
-        seed_iso = create_cloud_init_iso(name, name, user, password, sshkey, host_config)
-        
-        # Créer la VM
+        try:
+            seed_iso = create_cloud_init_iso(name, name, user, password, sshkey, host_config)
+            if not os.path.exists(seed_iso):
+                raise RuntimeError(f"ISO manquant: {seed_iso}")
+        except Exception as e:
+            conn.close()
+            vm_repo.update_status(vm.id, 'error')
+            return jsonify({'error': 'Erreur cloud-init', 'detail': str(e)}), 500
+
+        # virt-install
         cmd = [
             'virt-install',
             '--connect', host_config['uri'],
             '--name', name,
-            '--vcpus', str(flavor_config['vcpu']),
-            '--memory', str(flavor_config['ram_mb']),
+            '--vcpus', str(cpu),
+            '--memory', str(ram_mb),
             f'--disk=path={disk_path},format=qcow2,bus=virtio',
             f'--disk=path={seed_iso},device=cdrom',
             '--network', f'network={network.name},model=virtio',
@@ -587,39 +796,69 @@ def create_vm():
             '--noautoconsole',
             '--import'
         ]
-        
-        subprocess.run(cmd, check=True)
-        
-        # Mettre à jour le statut
+
+        try:
+            r = subprocess.run(cmd, capture_output=True, text=True, check=False)
+            if r.returncode != 0:
+                err = r.stderr.strip() or r.stdout.strip()
+                conn.close()
+                vm_repo.update_status(vm.id, 'error')
+                return jsonify({'error': 'virt-install failed', 'detail': err}), 500
+        except Exception as e:
+            conn.close()
+            vm_repo.update_status(vm.id, 'error')
+            return jsonify({'error': 'Erreur virt-install', 'detail': str(e)}), 500
+
+        # Attendre confirmation
+        created = False
+        for _ in range(20):
+            try:
+                dom = conn.lookupByName(name)
+                info = dom.info()
+                if info[0] == libvirt.VIR_DOMAIN_RUNNING:
+                    created = True
+                    break
+            except libvirt.libvirtError:
+                time.sleep(1)
+                continue
+
+        if not created:
+            domains = [d.name() for d in conn.listAllDomains()]
+            conn.close()
+            vm_repo.update_status(vm.id, 'error')
+            return jsonify({'error': 'VM non confirmée', 'domains': domains}), 500
+
+        # Succès
         vm_repo.update_status(vm.id, 'running')
         
-        # Facturation
-        billing_repo = BillingRepository(g.db_session)
-        price_hour = flavor_config['price_month'] / 730
-        billing_repo.create(
-            user_id=g.user_id,
-            amount=price_hour,
-            description=f"VM {name} - flavor {flavor}",
-            vm_id=vm.id
-        )
-        
+        # Facturation (sauf admin)
+        if not g.is_admin and flavor in FLAVORS:
+            billing_repo = BillingRepository(g.db_session)
+            price_hour = FLAVORS[flavor]['price_month'] / 730
+            billing_repo.create(
+                user_id=g.user_id, amount=price_hour,
+                description=f"VM {display_name} - flavor {flavor}", vm_id=vm.id
+            )
+
         conn.close()
-        
         return jsonify(vm.to_dict()), 201
-        
+
     except Exception as e:
         import traceback
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
 
-@app.route('/vms/<n>/start', methods=['POST'])
+@app.route('/vms/<name>/start', methods=['POST'])
 @require_auth
 def start_vm(name):
     vm_repo = VMRepository(g.db_session)
     vm = vm_repo.find_by_name(name)
     
-    if not vm or vm.user_id != g.user_id:
+    if not vm:
         return jsonify({'error': 'VM non trouvée'}), 404
+    
+    if not g.is_admin and vm.user_id != g.user_id:  # ✅ UTILISE g.is_admin
+        return jsonify({'error': 'Non autorisé'}), 403
     
     try:
         conn, _ = get_connection(vm.host_id)
@@ -628,126 +867,21 @@ def start_vm(name):
             dom.create()
         conn.close()
         vm_repo.update_status(vm.id, 'running')
-        return jsonify({'ok': True})
+        return jsonify({'message': f'VM {name} démarrée', 'status': 'running'})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-@app.route('/admin/vms', methods=['POST'])
-@require_auth
-def admin_create_vm():
-    """Admin peut créer une VM avec specs custom (pas de flavor)"""
-    if g.username != 'admin':
-        return jsonify({'error': 'Accès réservé aux administrateurs'}), 403
-    
-    try:
-        data = request.json
-        name = data['name']
-        image = data['image']
-        host_id = data.get('host', 'local')
-        cpu = int(data['cpu'])
-        ram = int(data['ram']) * 1024  # Convertir en MB
-        disk = int(data['disk'])
-        user = data.get('user', 'ubuntu')
-        password = data['password']
-        sshkey = data.get('sshkey', '').strip()
-        
-        print(f"\n{'='*50}")
-        print(f"[ADMIN] Création VM {name}")
-        print(f"{'='*50}")
-        
-        # Vérifier que la VM n'existe pas
-        conn, host_config = get_connection(host_id)
-        try:
-            conn.lookupByName(name)
-            conn.close()
-            return jsonify({'error': 'VM existe déjà'}), 409
-        except:
-            pass
-        
-        # Récupérer l'image
-        base_image = get_base_image(image)
-        if not base_image:
-            conn.close()
-            return jsonify({
-                'error': f'Image {image} non disponible',
-                'message': 'Téléchargez d\'abord l\'image'
-            }), 400
-        
-        # Créer le disque
-        disk_path = os.path.join(host_config['disk_dir'], f"{name}.qcow2")
-        subprocess.run([
-            'qemu-img', 'create', '-f', 'qcow2',
-            '-F', 'qcow2', '-b', base_image,
-            disk_path, f"{disk}G"
-        ], check=True)
-        print(f"✓ Disque: {disk_path}")
-        
-        # Réseau par défaut
-        network_name = 'default'
-        
-        # Cloud-init
-        seed_iso = create_cloud_init_iso(name, name, user, password, sshkey, host_config)
-        print(f"✓ Cloud-init: {seed_iso}")
-        
-        # Créer la VM
-        cmd = [
-            'virt-install',
-            '--connect', host_config['uri'],
-            '--name', name,
-            '--vcpus', str(cpu),
-            '--memory', str(ram),
-            f'--disk=path={disk_path},format=qcow2,bus=virtio',
-            f'--disk=path={seed_iso},device=cdrom',
-            '--network', f'network={network_name},model=virtio',
-            '--os-variant', 'ubuntu22.04',
-            '--graphics', 'none',
-            '--noautoconsole',
-            '--import'
-        ]
-        
-        result = subprocess.run(cmd, capture_output=True, text=True)
-        if result.returncode != 0:
-            print(f"❌ Erreur: {result.stderr}")
-            conn.close()
-            return jsonify({'error': result.stderr}), 500
-        
-        print(f"✓ VM {name} créée")
-        
-        # Attendre l'IP
-        time.sleep(10)
-        dom = conn.lookupByName(name)
-        ip = _get_vm_ip(dom)
-        for _ in range(30):
-            if ip:
-                break
-            time.sleep(2)
-            ip = _get_vm_ip(dom)
-        
-        conn.close()
-        
-        print(f"✓ IP: {ip or 'En attente...'}")
-        print(f"{'='*50}\n")
-        
-        return jsonify({
-            'name': name,
-            'host_id': host_id,
-            'ip': ip,
-            'status': 'running'
-        }), 201
-        
-    except Exception as e:
-        import traceback
-        traceback.print_exc()
-        return jsonify({'error': str(e)}), 500
-
-@app.route('/vms/<n>/stop', methods=['POST'])
+@app.route('/vms/<name>/stop', methods=['POST'])
 @require_auth
 def stop_vm(name):
     vm_repo = VMRepository(g.db_session)
     vm = vm_repo.find_by_name(name)
     
-    if not vm or vm.user_id != g.user_id:
+    if not vm:
         return jsonify({'error': 'VM non trouvée'}), 404
+    
+    if not g.is_admin and vm.user_id != g.user_id:
+        return jsonify({'error': 'Non autorisé'}), 403
     
     try:
         conn, _ = get_connection(vm.host_id)
@@ -756,72 +890,129 @@ def stop_vm(name):
             dom.shutdown()
         conn.close()
         vm_repo.update_status(vm.id, 'stopped')
-        return jsonify({'ok': True})
+        return jsonify({'message': f'VM {name} arrêtée', 'status': 'stopped'})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-# Route admin pour voir toutes les VMs (DB + libvirt)
-@app.route('/admin/vms/all', methods=['GET'])
+@app.route('/vms/<name>', methods=['DELETE'])
 @require_auth
-def admin_list_all_vms():
-    """Route admin pour voir TOUTES les VMs (DB + libvirt)"""
-    if g.username != 'admin':
-        return jsonify({'error': 'Accès réservé aux administrateurs'}), 403
+def delete_vm(name):
+    """Supprime une VM"""
+    vm_repo = VMRepository(g.db_session)
+    vm = vm_repo.find_by_name(name)
     
-    from models import VM as VMModel
+    if not vm:
+        return jsonify({'error': 'VM non trouvée'}), 404
     
-    all_vms = []
+    if not g.is_admin and vm.user_id != g.user_id:
+        return jsonify({'error': 'Non autorisé'}), 403
     
-    # VMs de la base de données
-    db_vms = g.db_session.query(VMModel).all()
-    db_vm_names = {vm.name for vm in db_vms}
-    
-    # Ajouter les VMs de la DB
-    for vm in db_vms:
-        vm_dict = vm.to_dict()
-        vm_dict['source'] = 'database'
-        vm_dict['legacy'] = False
-        all_vms.append(vm_dict)
-    
-    # Vérifier les VMs dans libvirt
-    for host_id in KVM_HOSTS:
+    try:
+        conn, host_config = get_connection(vm.host_id)
+        
+        # Arrêter et supprimer de libvirt
         try:
-            conn, _ = get_connection(host_id)
-            for dom in conn.listAllDomains():
-                vm_name = dom.name()
-                
-                # Si pas dans la DB, c'est une VM legacy
-                if vm_name not in db_vm_names:
-                    info = dom.info()
-                    all_vms.append({
-                        'id': None,
-                        'user_id': None,
-                        'name': vm_name,
-                        'host_id': host_id,
-                        'flavor': 'unknown',
-                        'image': 'unknown',
-                        'status': 'running' if info[0] == 1 else 'stopped',
-                        'ip_address': _get_vm_ip(dom),
-                        'vcpu': info[3],
-                        'ram_mb': info[2] // 1024,
-                        'source': 'libvirt-only',
-                        'legacy': True
-                    })
-            conn.close()
-        except Exception as e:
-            print(f"Erreur lecture hôte {host_id}: {e}")
-            continue
+            dom = conn.lookupByName(name)
+            if dom.isActive():
+                dom.destroy()
+                time.sleep(1)
+            dom.undefine()
+        except libvirt.libvirtError as e:
+            if 'Domain not found' not in str(e):
+                raise
+        
+        # Supprimer les disques
+        disk_path = os.path.join(host_config['disk_dir'], f"{name}.qcow2")
+        seed_path = os.path.join(host_config['disk_dir'], f"{name}-seed.iso")
+        
+        deleted_files = []
+        
+        if os.path.exists(disk_path):
+            os.remove(disk_path)
+            deleted_files.append(disk_path)
+        
+        if os.path.exists(seed_path):
+            os.remove(seed_path)
+            deleted_files.append(seed_path)
+        
+        conn.close()
+        
+        # Supprimer de la DB
+        vm_repo.delete(vm.id)
+        
+        # Facturation (note de suppression)
+        if not g.is_admin and vm.flavor in FLAVORS:
+            billing_repo = BillingRepository(g.db_session)
+            billing_repo.create(
+                user_id=g.user_id,
+                amount=0,
+                description=f"VM {name} supprimée - flavor {vm.flavor}",
+                vm_id=None
+            )
+        
+        return jsonify({
+            'message': f'VM {name} supprimée',
+            'deleted': {'name': name, 'files': deleted_files}
+        }), 200
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/vms/<name>/test-ssh', methods=['POST'])
+@require_auth
+def test_ssh(name):
+    """Teste la connexion SSH vers une VM"""
+    vm_repo = VMRepository(g.db_session)
+    vm = vm_repo.find_by_name(name)
     
-    return jsonify({
-        'total': len(all_vms),
-        'in_database': len(db_vms),
-        'legacy': len(all_vms) - len(db_vms),
-        'vms': all_vms
-    })
+    if not vm:
+        return jsonify({'error': 'VM non trouvée'}), 404
+    
+    if not g.is_admin and vm.user_id != g.user_id:
+        return jsonify({'error': 'Non autorisé'}), 403
+    
+    try:
+        conn, _ = get_connection(vm.host_id)
+        dom = conn.lookupByName(name)
+        ip = _get_vm_ip(dom)
+        conn.close()
+        
+        if not ip:
+            return jsonify({'success': False, 'error': 'IP non disponible'}), 400
+        
+        import socket
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(3)
+        result = sock.connect_ex((ip, 22))
+        sock.close()
+        
+        if result == 0:
+            return jsonify({
+                'success': True,
+                'ip': ip,
+                'port': 22,
+                'message': f'SSH accessible sur {ip}:22'
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': 'Port SSH non accessible',
+                'ip': ip
+            })
+            
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+# ========================================
+# ROUTES API - FACTURATION
+# ========================================
 
 @app.route('/billing')
 @require_auth
 def get_billing():
+    """Historique de facturation de l'utilisateur"""
     billing_repo = BillingRepository(g.db_session)
     bills = billing_repo.find_by_user(g.user_id)
     total = billing_repo.get_total_by_user(g.user_id)
@@ -831,85 +1022,189 @@ def get_billing():
         'total': round(total, 2)
     })
 
-# Route metrics (pour compatibilité avec l'ancien frontend)
-@app.route('/metrics')
-def get_metrics():
-    """Retourne les métriques des VMs actives (CPU, RAM, Disque)"""
+# ========================================
+# ROUTES API - ADMIN UNIQUEMENT
+# ========================================
+
+@app.route('/admin/users', methods=['GET'])
+@require_auth
+def admin_list_users():
+    """Liste tous les utilisateurs (admin uniquement)"""
+    print(f"🔍 DEBUG: User {g.username} (ID: {g.user_id}) demande la liste users")
+    print(f"🔍 DEBUG: is_admin = {g.is_admin}")
+    
+    if not g.is_admin:
+        print("❌ DEBUG: Accès refusé - pas admin")
+        return jsonify({'error': 'Accès réservé aux administrateurs'}), 403
+    
     try:
-        all_metrics = []
+        user_repo = UserRepository(g.db_session)
+        users = user_repo.get_all()
         
-        for host_id in KVM_HOSTS:
-            try:
-                conn, _ = get_connection(host_id)
-                for dom in conn.listAllDomains():
-                    if dom.isActive():
-                        try:
-                            metrics = _vm_metrics(dom)
-                            all_metrics.append({
-                                'name': dom.name(),
-                                'host': host_id,
-                                **metrics
-                            })
-                        except:
-                            continue
-                conn.close()
-            except:
-                continue
+        print(f"✅ DEBUG: {len(users)} utilisateurs trouvés en DB")
         
-        return jsonify(all_metrics)
+        users_data = []
+        for user in users:
+            print(f"   - Processing user: {user.username} (ID: {user.id})")
+            
+            vm_repo = VMRepository(g.db_session)
+            vms = vm_repo.find_by_user(user.id)
+            
+            billing_repo = BillingRepository(g.db_session)
+            total_billing = billing_repo.get_total_by_user(user.id)
+            
+            user_dict = {
+                **user.to_dict(),
+                'vm_count': len(vms),
+                'total_billing': round(total_billing, 2)
+            }
+            
+            print(f"     → {user.username}: {len(vms)} VMs, {total_billing} FCFA")
+            users_data.append(user_dict)
+        
+        print(f"✅ DEBUG: Retour de {len(users_data)} utilisateurs au frontend")
+        return jsonify(users_data)
+        
     except Exception as e:
+        import traceback
+        print("❌ DEBUG: Erreur dans admin_list_users:")
+        traceback.print_exc()
         return jsonify({'error': str(e)}), 500
 
-def _vm_metrics(dom):
-    """Calcule les métriques d'une VM"""
+@app.route('/admin/users', methods=['POST'])
+@require_auth
+def admin_create_user():
+    """Créer un utilisateur (admin uniquement)"""
+    if not g.is_admin:
+        return jsonify({'error': 'Accès réservé aux administrateurs'}), 403
+    
+    data = request.json
+    username = data.get('username')
+    password = data.get('password')
+    email = data.get('email')
+    
+    if not username or not password:
+        return jsonify({'error': 'Username et password requis'}), 400
+    
+    user_repo = UserRepository(g.db_session)
+    
+    if user_repo.find_by_username(username):
+        return jsonify({'error': 'Utilisateur existe déjà'}), 409
+    
     try:
-        info = dom.info()
-        cpu_count = info[3]
-        mem_max = info[2]
+        user = user_repo.create(
+            username=username,
+            password_hash=hash_password(password), 
+            email=email,
+            is_admin=False  # Les users créés par admin ne sont pas admin par défaut
+        )
         
-        cpu_percent = 0
-        try:
-            t1 = dom.getCPUStats(True, 0)
-            time.sleep(0.5)
-            t2 = dom.getCPUStats(True, 0)
-            if t1 and t2:
-                cpu_time_diff = sum(s['cpu_time'] - t1[i]['cpu_time'] for i, s in enumerate(t2))
-                cpu_percent = round(100 * cpu_time_diff / (cpu_count * 5e8), 1)
-        except:
-            pass
+        print(f"✅ Admin {g.username} a créé l'utilisateur {username}")
         
-        ram_percent = 0
-        try:
-            mem_stats = dom.memoryStats()
-            mem_used = mem_stats.get('rss', 0)
-            ram_percent = round(100 * mem_used / mem_max, 1) if mem_max else 0
-        except:
-            pass
+        return jsonify({
+            'message': f'Utilisateur {username} créé',
+            'user': user.to_dict()
+        }), 201
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/admin/users/<int:user_id>', methods=['DELETE'])
+@require_auth
+def admin_delete_user(user_id):
+    """Supprimer un utilisateur (admin uniquement)"""
+    if not g.is_admin:
+        return jsonify({'error': 'Accès réservé aux administrateurs'}), 403
+    
+    user_repo = UserRepository(g.db_session)
+    user = user_repo.find_by_id(user_id)
+    
+    if not user:
+        return jsonify({'error': 'Utilisateur non trouvé'}), 404
+    
+    if user.username == 'admin':
+        return jsonify({'error': 'Impossible de supprimer le compte admin'}), 403
+    
+    try:
+        # Supprimer toutes les VMs de l'utilisateur
+        vm_repo = VMRepository(g.db_session)
+        user_vms = vm_repo.find_by_user(user_id)
         
-        disk_GB = 0
-        try:
-            xml = dom.XMLDesc(0)
-            root = ET.fromstring(xml)
-            for elem in root.findall(".//disk[@type='file']/source[@file]"):
-                disk_path = elem.get('file')
-                if disk_path and os.path.isfile(disk_path) and os.access(disk_path, os.R_OK):
-                    out = subprocess.check_output(
-                        ['qemu-img', 'info', '--force-share', '--output=json', disk_path],
-                        stderr=subprocess.DEVNULL, timeout=2
-                    )
-                    disk_info = json.loads(out)
-                    disk_GB = round(disk_info.get('virtual-size', 0) / 1e9, 1)
-                    break
-        except:
-            pass
+        for vm in user_vms:
+            try:
+                conn, host_config = get_connection(vm.host_id)
+                try:
+                    dom = conn.lookupByName(vm.name)
+                    if dom.isActive():
+                        dom.destroy()
+                    dom.undefine()
+                except:
+                    pass
+                
+                disk_path = os.path.join(host_config['disk_dir'], f"{vm.name}.qcow2")
+                seed_path = os.path.join(host_config['disk_dir'], f"{vm.name}-seed.iso")
+                
+                if os.path.exists(disk_path):
+                    os.remove(disk_path)
+                if os.path.exists(seed_path):
+                    os.remove(seed_path)
+                
+                conn.close()
+            except Exception as e:
+                print(f"Erreur suppression VM {vm.name}: {e}")
         
-        return {'cpu': cpu_percent, 'ram': ram_percent, 'disk_GB': disk_GB}
-    except:
-        return {'cpu': 0, 'ram': 0, 'disk_GB': 0}
+        # Supprimer l'utilisateur (cascade supprime VMs, networks, billing)
+        g.db_session.delete(user)
+        g.db_session.commit()
+        
+        return jsonify({
+            'message': f'Utilisateur {user.username} supprimé',
+            'vms_deleted': len(user_vms)
+        }), 200
+        
+    except Exception as e:
+        g.db_session.rollback()
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/admin/users/<int:user_id>/reset-password', methods=['POST'])
+@require_auth
+def admin_reset_password(user_id):
+    """Réinitialiser le mot de passe d'un utilisateur"""
+    if not g.is_admin:
+        return jsonify({'error': 'Accès réservé aux administrateurs'}), 403
+    
+    data = request.json
+    new_password = data.get('password')
+    
+    if not new_password:
+        return jsonify({'error': 'Nouveau mot de passe requis'}), 400
+    
+    user_repo = UserRepository(g.db_session)
+    user = user_repo.find_by_id(user_id)
+    
+    if not user:
+        return jsonify({'error': 'Utilisateur non trouvé'}), 404
+    
+    try:
+        user.password_hash = hash_password(new_password)
+        g.db_session.commit()
+        
+        return jsonify({
+            'message': f'Mot de passe de {user.username} réinitialisé'
+        }), 200
+    except Exception as e:
+        g.db_session.rollback()
+        return jsonify({'error': str(e)}), 500
+
+# ========================================
+# MAIN
+# ========================================
 
 if __name__ == '__main__':
     print("=" * 60)
-    print("IaaS Multi-tenant v2.0 avec SQLAlchemy ORM")
+    print("🎓 Edu-Cloud IaaS Multi-tenant v3.0")
+    print("VERSION MISE À JOUR - Structure modulaire")
     print("=" * 60)
     
     # Initialiser la base de données
@@ -919,9 +1214,19 @@ if __name__ == '__main__':
     print(f"✓ {len(FLAVORS)} flavors disponibles")
     print(f"✓ {len(KVM_HOSTS)} hôtes KVM configurés")
     print("=" * 60)
-    print("\nCompte par défaut:")
+    print("\n🔐 Compte administrateur:")
     print("  Username: admin")
     print("  Password: admin123")
-    print("\n🌐 API: http://localhost:5000")
+    print("\n🌐 URLs:")
+    print("  Frontend: http://localhost:5000")
+    print("  API:      http://localhost:5000/api/*")
+    print("\n📁 Structure:")
+    print("  templates/index.html  → Page de connexion")
+    print("  templates/user.html   → Interface utilisateur")
+    print("  templates/admin.html  → Interface administrateur")
+    print("  static/api.js         → Utilitaires API")
+    print("  static/user-app.js    → Logique utilisateur")
+    print("  static/admin-app.js   → Logique admin")
     print("=" * 60)
     app.run(host='0.0.0.0', port=5000, debug=True)
+    

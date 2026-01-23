@@ -1,0 +1,19 @@
+version: "3.9"
+
+services:
+  edu-cloud:
+    build: .
+    container_name: edu-cloud-iaas
+    privileged: true
+    network_mode: "host"
+    volumes:
+      - /dev/kvm:/dev/kvm
+      - /var/run/libvirt:/var/run/libvirt
+      - /var/lib/libvirt:/var/lib/libvirt
+      - /var/run/dbus:/var/run/dbus
+      - ${HOME}/Codes/base-images:/var/lib/educloud/images
+      - .:/app
+    environment:
+      - LIBVIRT_DEFAULT_URI=qemu:///system
+      - DATABASE_URL=sqlite:///Edu_Cloud.db
+      - IMAGES_DIR=/var/lib/educloud/images
